@@ -1,0 +1,129 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+imports:
+  - http://www.getcloudify.org/spec/cloudify/4.0.1/types.yaml
+  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-openstack-plugin/2.2.0/plugin.yaml
+  - https://raw.githubusercontent.com/cloudify-incubator/cloudify-utilities-plugin/1.2.5/plugin.yaml
+
+inputs:
+
+  fortinet_image_url:
+    default: "https://s3-eu-west-1.amazonaws.com/cloudify-labs/images/fortiOS560.img"
+
+  user:
+    description: >
+      The username of the agent running on the instance created from the image.
+    default: admin
+  password:
+    default: ""
+
+  flavor:
+    description: >
+      An Openstack Flavor ID.
+    default: { get_secret: small_image_flavor }
+
+dsl_definitions:
+
+  openstack_config: &openstack_config
+    username: { get_secret: keystone_username }
+    password: { get_secret: keystone_password }
+    tenant_name: { get_secret: keystone_tenant_name }
+    auth_url: { get_secret: keystone_url }
+    region: { get_secret: region }
+
+node_templates:
+
+
+  fortios_vnf:
+    type: cloudify.openstack.nodes.Server
+    properties:
+      openstack_config: *openstack_config
+      agent_config:
+        install_method: none
+      server:
+        key_name: ''
+        image: "fortios"
+        flavor: { get_input: flavor }
+      management_network_name: { get_property: [ public_network, resource_id ] }
+    relationships:
+    - type: cloudify.openstack.server_connected_to_port
+      target: port
+    - type: cloudify.relationships.depends_on
+      target: fortinet_image
+
+
+  port:
+    type: cloudify.openstack.nodes.Port
+    properties:
+      openstack_config: *openstack_config
+    relationships:
+    - type: cloudify.relationships.contained_in
+      target: public_network
+    - type: cloudify.relationships.depends_on
+      target: public_subnet
+    - type: cloudify.openstack.port_connected_to_security_group
+      target: security_group
+    - type: cloudify.openstack.port_connected_to_floating_ip
+      target: ip
+
+  fortinet_image:
+    type: cloudify.openstack.nodes.Image
+    properties:
+      image:
+        container_format: "bare"
+        disk_format: "qcow2"
+      openstack_config: *openstack_config
+      image_url: {get_input : fortinet_image_url }
+      use_external_resource: true
+      create_if_missing: true
+      resource_id: "fortios"
+
+  public_subnet:
+    type: cloudify.openstack.nodes.Subnet
+    properties:
+      openstack_config: *openstack_config
+      use_external_resource: true
+      resource_id: { get_secret: public_subnet_name }
+    relationships:
+    - target: public_network
+      type: cloudify.relationships.contained_in
+
+  public_network:
+    type: cloudify.openstack.nodes.Network
+    properties:
+      openstack_config: *openstack_config
+      use_external_resource: true
+      resource_id: { get_secret: public_network_name }
+
+  security_group:
+    type: cloudify.openstack.nodes.SecurityGroup
+    properties:
+      openstack_config: *openstack_config
+      security_group:
+#        name: security_group
+        description: generic security group
+      rules:
+        - remote_ip_prefix: 0.0.0.0/0
+          port: 22
+        - remote_ip_prefix: 0.0.0.0/0
+          port: 80
+        - remote_ip_prefix: 0.0.0.0/0
+          port: 443
+
+  ip:
+    type: cloudify.openstack.nodes.FloatingIP
+    properties:
+      openstack_config: *openstack_config
+      floatingip:
+        floating_network_name: { get_secret: external_network_name }
+
+
+outputs:
+
+  endpoint:
+    description: Web application endpoint
+    value:
+      concat:
+      - 'http://'
+      - { get_attribute: [ip, floating_ip_address] }
+      - '/'
