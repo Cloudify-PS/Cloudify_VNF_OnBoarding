@@ -38,7 +38,7 @@ dsl_definitions:
 node_templates:
 
 
-  fortios_vnf:
+  vnf_vm:
     type: cloudify.openstack.nodes.Server
     properties:
       openstack_config: *openstack_config
@@ -53,7 +53,7 @@ node_templates:
     - type: cloudify.openstack.server_connected_to_port
       target: port
     - type: cloudify.relationships.depends_on
-      target: fortinet_image
+      target: vnf_image
 
 
   port:
@@ -70,7 +70,7 @@ node_templates:
     - type: cloudify.openstack.port_connected_to_floating_ip
       target: ip
 
-  fortinet_image:
+  vnf_image:
     type: cloudify.openstack.nodes.Image
     properties:
       image:
