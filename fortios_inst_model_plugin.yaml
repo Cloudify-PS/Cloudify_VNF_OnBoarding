@@ -3,8 +3,7 @@ tosca_definitions_version: cloudify_dsl_1_3
 imports:
   - http://www.getcloudify.org/spec/cloudify/4.0.1/types.yaml
   - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-openstack-plugin/2.2.0/plugin.yaml
-#  - https://raw.githubusercontent.com/cloudify-incubator/cloudify-utilities-plugin/1.2.5/plugin.yaml
-  - https://raw.githubusercontent.com/MichaelShn/cloudify-utilities-plugin/patch-tmp/plugin.yaml
+  - fortios_plugin.yaml
 
 
 inputs:
@@ -40,7 +39,10 @@ dsl_definitions:
 node_templates:
 
   hostname:
-    type: cloudify.terminal.raw
+    type: fortigate.configuration.hostname
+    properties:
+      params:
+        system: { get_input: fortigate_hostname }
     interfaces:
       cloudify.interfaces.lifecycle:
         start:
@@ -52,13 +54,6 @@ node_templates:
               key_content: ''
               port: 22
 
-            calls:
-              - template: fortigate/hostname.txt
-                params:
-                  system: { get_input: fortigate_hostname }
-                responses:
-                  - question: Do you want to continue? (y/n)
-                    answer: y
     relationships:
       - type: cloudify.relationships.contained_in
         target: fortios_vnf
@@ -67,7 +62,7 @@ node_templates:
 
 
   conf_auth:
-    type: cloudify.terminal.raw
+    type: fortigate.configuration.password
     interfaces:
       cloudify.interfaces.lifecycle:
         start:
@@ -78,17 +73,11 @@ node_templates:
               ip: { get_attribute: [fortios_vnf, ip ] }
               key_content: ''
               port: 22
-
-            calls:
-              - template: fortigate/setpasswd.txt
-                params:
-                  password: { get_input: password }
-                responses:
-                  - question: Do you want to continue? (y/n)
-                    answer: y
     relationships:
       - type: cloudify.relationships.contained_in
         target: fortios_vnf
+
+
 
   fortios_vnf:
     type: cloudify.openstack.nodes.Server

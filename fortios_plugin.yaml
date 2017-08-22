@@ -1,0 +1,42 @@
+imports:
+  - https://raw.githubusercontent.com/MichaelShn/cloudify-utilities-plugin/patch-tmp/plugin.yaml
+
+node_types:
+  fortigate.configuration.node:
+    derived_from: cloudify.terminal.raw
+
+  fortigate.configuration.hostname:
+    derived_from: cloudify.terminal.raw
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        start:
+          calls:
+            default:
+              - template_text: >
+                  config system global
+                  set hostname "{{ system }}"
+                  end
+                params:
+                  system: { get_input: fortigate_hostname }
+                responses:
+                  - question: Do you want to continue? (y/n)
+                    answer: y
+
+  fortigate.configuration.password:
+    derived_from: cloudify.terminal.raw
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        start:
+          calls:
+            default:
+              - template_text: >
+                  config system admin
+                  edit admin
+                  set password "{{ password }}"
+                  end
+                  exit
+                params:
+                  system: { get_input: fortigate_hostname }
+                responses:
+                  - question: Do you want to continue? (y/n)
+                    answer: y

@@ -3,25 +3,23 @@ tosca_definitions_version: cloudify_dsl_1_3
 imports:
   - http://www.getcloudify.org/spec/cloudify/4.0.1/types.yaml
   - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-openstack-plugin/2.2.0/plugin.yaml
-#  - https://raw.githubusercontent.com/cloudify-incubator/cloudify-utilities-plugin/1.2.5/plugin.yaml
-  - https://raw.githubusercontent.com/MichaelShn/cloudify-utilities-plugin/patch-tmp/plugin.yaml
-
+  - https://raw.githubusercontent.com/cloudify-incubator/cloudify-utilities-plugin/1.2.5/plugin.yaml
 
 inputs:
 
-  fortigate_hostname:
-    default: "forti2cloudify"
+  vnf_image_url:
+    default: "https://s3-eu-west-1.amazonaws.com/cloudify-labs/images/openwrt-15.05.1-x86-kvm_guest-combined-ext4.img"
 
-  fortinet_image_url:
-    default: "https://s3-eu-west-1.amazonaws.com/cloudify-labs/images/F560.img"
+  vnf_image_name:
+    default: "generic_vnf"
 
   user:
     description: >
-      The username for the vnf
+      The username of the agent running on the instance created from the image.
     default: admin
 
   password:
-    default: "SecretP1"
+    default: ""
 
   flavor:
     description: >
@@ -39,56 +37,6 @@ dsl_definitions:
 
 node_templates:
 
-  hostname:
-    type: cloudify.terminal.raw
-    interfaces:
-      cloudify.interfaces.lifecycle:
-        start:
-          inputs:
-            terminal_auth:
-              user: { get_input: user }
-              password: { get_input: password }
-              ip: { get_attribute: [fortios_vnf, ip ] }
-              key_content: ''
-              port: 22
-
-            calls:
-              - template: fortigate/hostname.txt
-                params:
-                  system: { get_input: fortigate_hostname }
-                responses:
-                  - question: Do you want to continue? (y/n)
-                    answer: y
-    relationships:
-      - type: cloudify.relationships.contained_in
-        target: fortios_vnf
-      - type: cloudify.relationships.connected_to
-        target: conf_auth
-
-
-  conf_auth:
-    type: cloudify.terminal.raw
-    interfaces:
-      cloudify.interfaces.lifecycle:
-        start:
-          inputs:
-            terminal_auth:
-              user: { get_input: user }
-              password: ''
-              ip: { get_attribute: [fortios_vnf, ip ] }
-              key_content: ''
-              port: 22
-
-            calls:
-              - template: fortigate/setpasswd.txt
-                params:
-                  password: { get_input: password }
-                responses:
-                  - question: Do you want to continue? (y/n)
-                    answer: y
-    relationships:
-      - type: cloudify.relationships.contained_in
-        target: fortios_vnf
 
   fortios_vnf:
     type: cloudify.openstack.nodes.Server
@@ -98,7 +46,7 @@ node_templates:
         install_method: none
       server:
         key_name: ''
-        image: "fortios"
+        image: { get_input: vnf_image_name }
         flavor: { get_input: flavor }
       management_network_name: { get_property: [ public_network, resource_id ] }
     relationships:
@@ -132,7 +80,7 @@ node_templates:
       image_url: {get_input : fortinet_image_url }
       use_external_resource: true
       create_if_missing: true
-      resource_id: "fortios"
+      resource_id: { get_input: vnf_image_name }
 
   public_subnet:
     type: cloudify.openstack.nodes.Subnet
@@ -156,7 +104,6 @@ node_templates:
     properties:
       openstack_config: *openstack_config
       security_group:
-#        name: security_group
         description: generic security group
       rules:
         - remote_ip_prefix: 0.0.0.0/0
@@ -177,14 +124,9 @@ node_templates:
 outputs:
 
   endpoint:
-    description: Web application endpoint
+    description: Web VNF endpoint
     value:
       concat:
       - 'http://'
       - { get_attribute: [ip, floating_ip_address] }
       - '/'
-  internal_ip:
-      value: { get_property: [fortios_vnf, ip ] }
-
-  internal_ip2:
-      value: { get_attribute: [fortios_vnf, ip ] }

@@ -13,7 +13,7 @@ inputs:
     default: "forti2cloudify"
 
   fortinet_image_url:
-    default: "https://s3-eu-west-1.amazonaws.com/cloudify-labs/images/fortiOS560.img"
+    default: "https://s3-eu-west-1.amazonaws.com/cloudify-labs/images/F560.img"
 
   user:
     description: >
